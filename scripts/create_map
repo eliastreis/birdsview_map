@@ -1,0 +1,46 @@
+#! /usr/bin/env python
+
+from posix import listdir
+
+from nose.plugins.base import Plugin
+import rospy, rospkg, subprocess, os
+
+
+def load_file(path, obj):
+    path_file = path + 'gazebo_world' + *os.listdir(f'./{obj}')
+    with open(path_file) as f:
+                world_file = f.read()
+    return world_file
+
+
+if __name__ == '__main__':
+    rospy.init_node('birdsview_map')
+    step = rospy.get_param('~step_size')
+    path= rospkg.RosPack().get_path('birdsview_map')
+    os.chdir(path)
+    world = load_file(path, 'world')
+    plugin = load_file(path, 'plugin')
+    launch = load_file(path, 'launch')
+    map(os.mkdir, ['.wolds','.maps', '.launch'])
+
+    # create maps
+    for pos in range(0.3, 2, step):
+        plugin.replace('placeholder', pos)
+        world = world.replace('  </world>', plugin + '  </world>') #get the path
+        f = open(f'{pos}.world', 'w', )
+        f.write(world)
+        f.close()
+        launch.replace('placeholder', path + '.launch' + pos + '.world') # get the path
+        #ToDo
+        subprocess(f'roslaunch birdsview_map {pos}.launch', shell = True)
+        rospy.wait_for_service('spawn_sdf_model')
+        subprocess('rosservice call /gazebo_2Dmap_plugin/generate_map', shell = True)
+        rospy.wait_for_service # todo
+        subprocess(f'rosrun map_server map_saver -f {pos} /map:=/map2d', shell = True)
+        
+    # build final map
+    for pos in range(0.3, 2, step):
+        
+
+    #cleanup
+    

@@ -1,0 +1,8 @@
+<launch> 
+  <arg name="step_size"       default="0.3"/>
+
+  <node name="birdsview_map" pkg="birdsview_map" type="birdsview_map" output="screen">
+      <param name="simulation_factor" value="$(arg step_size)" type="double"/>
+  </node>
+
+</launch>
