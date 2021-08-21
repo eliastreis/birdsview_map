@@ -1,13 +1,29 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
-from posix import listdir
-
-from nose.plugins.base import Plugin
 import rospy, rospkg, subprocess, os
+from PIL import Image
+import numpy as np
+from pathlib import Path
 
+STEP_SIZE = 0.5
+
+def load_image( infilename ) :
+    img = Image.open( infilename )
+    img.load()
+    data = np.asarray( img, dtype="int32" )
+    return data
+
+def save_image( npdata, outfilename ) :
+    img = Image.fromarray( np.asarray( np.clip(npdata,0,255), dtype="uint8"), "L" )
+    img.save( outfilename )
+
+def write_file(name, content, pos):
+    f = open(os.path.relpath(f'.{name}/{pos}.{name}'), 'w', )
+    f.write(content)
+    f.close()
 
 def load_file(path, obj):
-    path_file = path + 'gazebo_world' + *os.listdir(f'./{obj}')
+    path_file = path + 'gazebo_world' + os.listdir(f'./{obj}')
     with open(path_file) as f:
                 world_file = f.read()
     return world_file
@@ -15,32 +31,38 @@ def load_file(path, obj):
 
 if __name__ == '__main__':
     rospy.init_node('birdsview_map')
-    step = rospy.get_param('~step_size')
+    target_hight = rospy.get_param('~target_hight')
     path= rospkg.RosPack().get_path('birdsview_map')
     os.chdir(path)
-    world = load_file(path, 'world')
     plugin = load_file(path, 'plugin')
-    launch = load_file(path, 'launch')
-    map(os.mkdir, ['.wolds','.maps', '.launch'])
+    map(os.mkdir, ['.wold','.map', '.launch'])
+    data = np.array(data)
 
-    # create maps
-    for pos in range(0.3, 2, step):
+    for pos in range(0.3, target_hight, STEP_SIZE):
+
+        # create files
+        world = load_file(path, 'world')
         plugin.replace('placeholder', pos)
-        world = world.replace('  </world>', plugin + '  </world>') #get the path
-        f = open(f'{pos}.world', 'w', )
-        f.write(world)
-        f.close()
-        launch.replace('placeholder', path + '.launch' + pos + '.world') # get the path
-        #ToDo
+        launch = load_file(path, 'launch')
+        world = world.replace('  </world>', plugin + '  </world>')
+        write_file('world', world, pos)
+        launch.replace('placeholder', path + '.launch' + pos + '.world')
+        write_file('world', world, pos)
+        
+        # create maps
         subprocess(f'roslaunch birdsview_map {pos}.launch', shell = True)
-        rospy.wait_for_service('spawn_sdf_model')
+        rospy.wait_for_service('/spawn_sdf_model')
+        rospy.sleep(1)
         subprocess('rosservice call /gazebo_2Dmap_plugin/generate_map', shell = True)
-        rospy.wait_for_service # todo
-        subprocess(f'rosrun map_server map_saver -f {pos} /map:=/map2d', shell = True)
+        rospy.wait_for_service('/get_loggers')
+        rospy.sleep(1)
+        os.chdir(os.getcwd() + '.map')
+        subprocess(f'rosrun map_server map_saver -f .map/{pos} /map:=/map2d', shell = True)
+        subprocess(f'cd ..', shell = True)
         
-    # build final map
-    for pos in range(0.3, 2, step):
-        
+        # overlay maps
+        data += load_image('.map/map.png')
 
-    #cleanup
+    write_file(data, 'final_map/map.png')
+    Path(os.getcwd() + '.map/map.yaml').rename(os.getcwd() + 'final_map/map.yaml')
     

@@ -1,0 +1,6 @@
+rospy
+rospkg
+subprocess
+PIL
+numpy
+pathlib
